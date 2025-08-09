@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>DRM Secure Video</title>
+    <style>
+      html,
+      body {
+        height: 100%;
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        background: #000;
+      }
+      .video-container {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: #000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      iframe {
+        border: 0;
+        width: 100vw;
+        height: 100vh;
+        max-width: 100vw;
+        max-height: 100vh;
+      }
+      #status {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        background: rgba(0, 0, 0, 0.8);
+        color: white;
+        padding: 10px;
+        border-radius: 5px;
+        font-family: Arial, sans-serif;
+        z-index: 1000;
+        font-size: 14px;
+      }
+      #notification {
+        margin-top: 10px;
+        padding: 8px;
+        background: rgba(0, 255, 0, 0.2);
+        border-radius: 3px;
+        font-size: 12px;
+        animation: fadeIn 0.5s ease-in;
+      }
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+      @keyframes fadeOut {
+        from {
+          opacity: 1;
+        }
+        to {
+          opacity: 0;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="video-container">
+      <iframe
+        id="vdoIframe"
+        src="{{ vdocipher_url }}"
+        allowfullscreen="true"
+        allow="encrypted-media"
+      ></iframe>
+    </div>
+
+    <!-- Status indicator -->
+    <div id="status">
+      <div id="videoStatus">Video loading...</div>
+      <div id="countdown"></div>
+      {% if redirect_delay and redirect_delay != 'null' %}
+      <div id="notification">
+        📱 You'll be redirected to WhatsApp in {{ redirect_delay }} seconds
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Inject template variables into JS -->
+    <script>
+      const whatsappUrl = "https://wa.me/918691020071";
+
+      // Use string then parse to number or null to avoid JS parse errors before template rendering
+      const templateRedirectDelayRaw = "{{ redirect_delay|default:'null' }}";
+      const templateRedirectDelay = (templateRedirectDelayRaw === "null" || templateRedirectDelayRaw === "") ? null : parseInt(templateRedirectDelayRaw, 10);
+      let tokenMetadataRaw = '{{ token_metadata|default:"{}"|escapejs }}';
+      let tokenMetadata = {};
+      try { tokenMetadata = JSON.parse(tokenMetadataRaw || '{}'); } catch(e){ tokenMetadata = {}; }
+
+      let redirectDelaySeconds = 205;
+      if (templateRedirectDelay !== null && !isNaN(templateRedirectDelay)) {
+          redirectDelaySeconds = templateRedirectDelay;
+      } else if (tokenMetadata.dynamic_delay) {
+          redirectDelaySeconds = parseInt(tokenMetadata.dynamic_delay, 10) + 30;
+      }
+
+      const redirectDelay = redirectDelaySeconds * 1000;
+
+      const statusElement = document.getElementById('videoStatus');
+      const countdownElement = document.getElementById('countdown');
+      let redirectTimeout, countdownInterval, timeLeft = redirectDelaySeconds, videoEnded=false;
+
+      function updateCountdown(){
+          if(videoEnded) return;
+          if(timeLeft <= 0){
+              countdownElement.textContent = "Redirecting to WhatsApp...";
+              return;
+          }
+          const m = Math.floor(timeLeft/60);
+          const s = (timeLeft%60).toString().padStart(2,'0');
+          countdownElement.textContent = `Redirect in ${m}:${s}`;
+          timeLeft--;
+      }
+      function startCountdown(){
+          updateCountdown();
+          countdownInterval = setInterval(updateCountdown, 1000);
+      }
+      function stopCountdown(){
+          if(countdownInterval) clearInterval(countdownInterval);
+          if(redirectTimeout) clearTimeout(redirectTimeout);
+      }
+      function redirectToWhatsApp(reason){
+          if(videoEnded) return;
+          videoEnded = true;
+          stopCountdown();
+          statusElement.textContent = "Redirecting to WhatsApp...";
+          setTimeout(()=>window.location.href = whatsappUrl, 800);
+      }
+
+      // Start
+      startCountdown();
+      redirectTimeout = setTimeout(()=>redirectToWhatsApp("timeout"), redirectDelay);
+
+      // (Optional) If you want immediate redirect after video end you can postMessage handle here.
+    </script>
+  </body>
+</html>

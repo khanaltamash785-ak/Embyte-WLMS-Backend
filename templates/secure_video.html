@@ -1,0 +1,1087 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>🔒 Secure Video</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #000;
+            -webkit-user-select: none;
+            -moz-user-select: none; 
+            -ms-user-select: none;
+            user-select: none;
+            /* Mobile optimizations */
+            -webkit-touch-callout: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* iOS specific height handling */
+        @supports (-webkit-touch-callout: none) {
+            html, body {
+                height: 100vh;
+                height: -webkit-fill-available;
+            }
+        }
+
+        .video-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            height: -webkit-fill-available; /* iOS Safari fix */
+            background: #000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            /* Safe area support for notched devices */
+            padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+        }
+
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            /* Mobile video optimizations */
+            -webkit-transform: translateZ(0);
+            transform: translateZ(0);
+            will-change: transform;
+        }
+
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            height: -webkit-fill-available;
+            background: #000;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+
+        .fullscreen-request {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            height: -webkit-fill-available;
+            background: rgba(0, 0, 0, 0.95);
+            color: white;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 200;
+            /* Mobile scrolling */
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .request-content {
+            text-align: center;
+            padding: 20px;
+            background: #1a1a1a;
+            border-radius: 15px;
+            max-width: 90%;
+            margin: 20px;
+            /* Mobile responsive */
+            min-height: auto;
+        }
+
+        .enable-btn {
+            background: #00ff41;
+            color: black;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            margin: 10px 5px;
+            /* Mobile touch optimizations */
+            min-height: 44px; /* iOS recommended touch target */
+            min-width: 120px;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+            transition: all 0.2s ease;
+        }
+
+        .enable-btn:active {
+            transform: scale(0.95);
+            background: #00d435;
+        }
+
+        .recording-warning {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            height: -webkit-fill-available;
+            background: rgba(255, 0, 0, 0.95);
+            color: white;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 300;
+            padding: 20px;
+        }
+
+        .warning-content {
+            text-align: center;
+            padding: 30px 20px;
+            background: rgba(0, 0, 0, 0.9);
+            border-radius: 15px;
+            border: 2px solid #ff0000;
+            max-width: 90%;
+        }
+
+        .red-indicator {
+            width: 20px;
+            height: 20px;
+            background: #ff0000;
+            border-radius: 50%;
+            display: inline-block;
+            animation: pulse 1s infinite;
+            margin: 0 10px;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .status {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 15px;
+            font-size: 12px;
+            z-index: 50;
+            /* Mobile positioning adjustments */
+            top: max(20px, env(safe-area-inset-top));
+            right: max(20px, env(safe-area-inset-right));
+        }
+
+        /* Mobile device specific styles */
+        @media screen and (max-width: 768px) {
+            .request-content {
+                padding: 15px;
+                margin: 10px;
+                border-radius: 10px;
+            }
+            
+            .enable-btn {
+                width: 100%;
+                max-width: 280px;
+                margin: 8px 0;
+                padding: 18px 20px;
+                font-size: 16px;
+            }
+            
+            .warning-content {
+                padding: 20px 15px;
+                font-size: 14px;
+            }
+            
+            .status {
+                font-size: 11px;
+                padding: 6px 10px;
+                top: 10px;
+                right: 10px;
+            }
+        }
+
+        /* Landscape mobile optimizations */
+        @media screen and (max-height: 500px) and (orientation: landscape) {
+            .request-content {
+                padding: 10px;
+                max-height: 90vh;
+                overflow-y: auto;
+            }
+            
+            .enable-btn {
+                padding: 12px 20px;
+                font-size: 14px;
+                margin: 5px 0;
+            }
+        }
+
+        /* iOS specific styles */
+        @supports (-webkit-touch-callout: none) {
+            /* Hide default iOS video controls in certain contexts */
+            video::-webkit-media-controls {
+                display: none !important;
+            }
+            
+            video::-webkit-media-controls-enclosure {
+                display: none !important;
+            }
+        }
+
+        /* Android Chrome specific optimizations */
+        @media screen and (-webkit-min-device-pixel-ratio: 2) {
+            .video-container {
+                /* Optimize for high DPI Android screens */
+                image-rendering: -webkit-optimize-contrast;
+            }
+        }
+
+        /* Loading spinner for mobile */
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-top: 3px solid #00ff41;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Device info display */
+        .device-info {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 10px;
+            margin: 15px 0;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        /* Mobile debug panel */
+        .debug-panel {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            color: #00ff41;
+            padding: 10px;
+            font-size: 11px;
+            font-family: monospace;
+            z-index: 60;
+            transform: translateY(100%);
+            transition: transform 0.3s ease;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
+        .debug-panel.show {
+            transform: translateY(0);
+        }
+
+        .debug-toggle {
+            position: fixed;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(0, 255, 65, 0.2);
+            color: #00ff41;
+            border: 1px solid #00ff41;
+            padding: 8px 12px;
+            border-radius: 15px;
+            font-size: 10px;
+            cursor: pointer;
+            z-index: 61;
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading -->
+    <div class="loading-overlay" id="loading">
+        <div>
+            <div class="loading-spinner"></div>
+            <h3>Loading secure video...</h3>
+            <p style="font-size: 14px; opacity: 0.8; margin-top: 10px;">
+                Optimizing for your device...
+            </p>
+        </div>
+    </div>
+
+    <!-- Fullscreen Request -->
+    <div class="fullscreen-request" id="fullscreenRequest">
+        <div class="request-content">
+            <h2>📱 Mobile Secure Video</h2>
+            <p style="margin: 15px 0;">Enable fullscreen mode for the best secure viewing experience</p>
+            
+            <div class="device-info" id="deviceInfo">
+                <div id="deviceDetails">Detecting device...</div>
+            </div>
+            
+            <div style="background: rgba(255, 100, 100, 0.2); padding: 12px; border-radius: 8px; margin: 15px 0; border: 1px solid rgba(255, 100, 100, 0.4);">
+                <p style="font-size: 13px; color: #ffcccc;">
+                    ⚠️ Screen recording detection is active<br>
+                    📱 Optimized for mobile devices
+                </p>
+            </div>
+            
+            <button class="enable-btn" onclick="enableFullscreen()">
+                📱 Enable Fullscreen & Play
+            </button>
+            
+            <p style="font-size: 12px; opacity: 0.7; margin-top: 15px;">
+                For best experience, hold your device in landscape mode
+            </p>
+        </div>
+    </div>
+
+    <!-- Video Container -->
+    <div class="video-container" id="videoContainer">
+        <video 
+            id="secureVideo" 
+            controls 
+            playsinline 
+            webkit-playsinline
+            x-webkit-airplay="deny"
+            controlslist="nodownload noremoteplayback"
+            disablePictureInPicture>
+            Your browser does not support video playback.
+        </video>
+    </div>
+
+    <!-- Recording Warning -->
+    <div class="recording-warning" id="recordingWarning">
+        <div class="warning-content">
+            <div style="font-size: 50px; margin-bottom: 15px;">🚫</div>
+            <div class="red-indicator"></div>
+            <span style="font-size: 20px; font-weight: bold;">RECORDING DETECTED</span>
+            <div class="red-indicator"></div>
+            <p style="margin: 15px 0; font-size: 16px;">
+                Please stop screen recording to continue
+            </p>
+            <p style="font-size: 14px; line-height: 1.6;">
+                📍 Check recording indicator<br>
+                ⏹️ Stop screen recording<br>
+                ▶️ Video will resume automatically
+            </p>
+        </div>
+    </div>
+
+    <!-- Status -->
+    <div class="status" id="status">🟢 Secure</div>
+
+    <!-- Debug Panel -->
+    <div class="debug-panel" id="debugPanel">
+        <div><strong>Mobile Debug Info:</strong></div>
+        <div>Device: <span id="debugDevice">-</span></div>
+        <div>Screen: <span id="debugScreen">-</span></div>
+        <div>Viewport: <span id="debugViewport">-</span></div>
+        <div>Orientation: <span id="debugOrientation">-</span></div>
+        <div>Connection: <span id="debugConnection">-</span></div>
+        <div>Battery: <span id="debugBattery">-</span></div>
+    </div>
+    
+    <div class="debug-toggle" onclick="toggleDebug()">DEBUG</div>
+
+    <script>
+        let videoToken = "{{ token }}";
+        let videoElement = null;
+        let isRecordingDetected = false;
+        let currentVideoUrl = null;
+        let baselineStatusBarHeight = 0;
+        let monitoringInterval = null;
+        let debugVisible = false;
+
+        // Enhanced mobile detection
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        const isiOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+        const isAndroid = /Android/i.test(navigator.userAgent);
+        const isTablet = /(tablet|ipad|playbook|silk)|(android(?!.*mobi))/i.test(navigator.userAgent);
+        
+        // Mobile-specific device info
+        const deviceInfo = {
+            userAgent: navigator.userAgent,
+            platform: navigator.platform,
+            screenWidth: screen.width,
+            screenHeight: screen.height,
+            devicePixelRatio: window.devicePixelRatio || 1,
+            orientation: screen.orientation ? screen.orientation.angle : window.orientation,
+            connection: navigator.connection ? navigator.connection.effectiveType : 'unknown',
+            language: navigator.language,
+            cookiesEnabled: navigator.cookieEnabled,
+            onLine: navigator.onLine
+        };
+
+        // Initialize
+        window.addEventListener('load', function() {
+            console.log('🚀 Mobile-optimized secure video loading...');
+            initMobileOptimizations();
+            updateDeviceInfo();
+            updateDebugInfo();
+            validateAccess();
+        });
+
+        function initMobileOptimizations() {
+            // Prevent zoom on double tap
+            let lastTouchEnd = 0;
+            document.addEventListener('touchend', function (event) {
+                const now = (new Date()).getTime();
+                if (now - lastTouchEnd <= 300) {
+                    event.preventDefault();
+                }
+                lastTouchEnd = now;
+            }, false);
+
+            // Handle orientation changes
+            window.addEventListener('orientationchange', function() {
+                console.log('📱 Orientation changed');
+                setTimeout(() => {
+                    updateDebugInfo();
+                    if (videoElement && !videoElement.paused) {
+                        // Maintain fullscreen after orientation change
+                        enableMobileFullscreen();
+                    }
+                }, 500);
+            });
+
+            // Handle page visibility (mobile app switching)
+            document.addEventListener('visibilitychange', function() {
+                if (document.hidden) {
+                    console.log('📱 App went to background');
+                    if (videoElement && !videoElement.paused) {
+                        videoElement.pause();
+                        updateStatus('⏸️ Paused (Background)');
+                    }
+                } else {
+                    console.log('📱 App returned to foreground');
+                    updateStatus('🔍 Checking Security...');
+                    // Re-verify security when returning from background
+                    setTimeout(() => {
+                        if (!isRecordingDetected) {
+                            updateStatus('🟢 Secure');
+                        }
+                    }, 1000);
+                }
+            });
+
+            // Mobile network monitoring
+            if (navigator.connection) {
+                navigator.connection.addEventListener('change', function() {
+                    console.log('📡 Network changed:', navigator.connection.effectiveType);
+                    updateDebugInfo();
+                });
+            }
+
+            // iOS-specific optimizations
+            if (isiOS) {
+                // Hide address bar
+                window.addEventListener('load', () => {
+                    setTimeout(() => {
+                        window.scrollTo(0, 1);
+                    }, 500);
+                });
+
+                // Handle iOS keyboard
+                window.addEventListener('resize', () => {
+                    if (document.activeElement.tagName === 'INPUT') {
+                        setTimeout(() => {
+                            document.activeElement.scrollIntoView();
+                        }, 300);
+                    }
+                });
+            }
+
+            // Android-specific optimizations
+            if (isAndroid) {
+                // Handle Android back button
+                window.addEventListener('popstate', function(event) {
+                    event.preventDefault();
+                    if (videoElement && !videoElement.paused) {
+                        videoElement.pause();
+                        updateStatus('⏸️ Paused');
+                    }
+                });
+            }
+
+            console.log('✅ Mobile optimizations initialized');
+        }
+
+        function updateDeviceInfo() {
+            const deviceDetails = document.getElementById('deviceDetails');
+            let deviceType = 'Unknown';
+            let capabilities = [];
+
+            if (isiOS) {
+                deviceType = isTablet ? 'iPad' : 'iPhone';
+                capabilities = [
+                    '🍎 iOS Safari optimized',
+                    '📱 Touch controls enabled',
+                    '🔒 Advanced security features',
+                    '⚡ Hardware acceleration'
+                ];
+            } else if (isAndroid) {
+                deviceType = isTablet ? 'Android Tablet' : 'Android Phone';
+                capabilities = [
+                    '🤖 Android Chrome optimized',
+                    '📱 Gesture controls enabled',
+                    '🔒 Recording detection active',
+                    '⚡ GPU acceleration'
+                ];
+            } else {
+                deviceType = 'Desktop/Other';
+                capabilities = [
+                    '🖥️ Desktop optimized',
+                    '🔒 Full security suite',
+                    '⚡ Maximum performance'
+                ];
+            }
+
+            deviceDetails.innerHTML = `
+                <div><strong>${deviceType}</strong></div>
+                <div style="margin-top: 8px;">
+                    ${capabilities.map(cap => `<div style="margin: 2px 0;">${cap}</div>`).join('')}
+                </div>
+                <div style="margin-top: 8px; font-size: 12px; opacity: 0.8;">
+                    Screen: ${deviceInfo.screenWidth}×${deviceInfo.screenHeight}<br>
+                    Pixel Ratio: ${deviceInfo.devicePixelRatio}x
+                </div>
+            `;
+        }
+
+        function validateAccess() {
+            fetch('/django/api/validate-video-access/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify({
+                    token: videoToken,
+                    user_agent: navigator.userAgent,
+                    device_info: deviceInfo
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.valid) {
+                    currentVideoUrl = data.video_url;
+                    showFullscreenRequest();
+                } else {
+                    showError('Access Denied', data.error || 'Invalid access token');
+                }
+            })
+            .catch(error => {
+                console.error('Validation error:', error);
+                showError('Connection Error', 'Unable to validate access. Check your internet connection.');
+            });
+        }
+
+        function showFullscreenRequest() {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('fullscreenRequest').style.display = 'flex';
+        }
+
+        async function enableFullscreen() {
+            try {
+                updateStatus('📱 Enabling Mobile Fullscreen...');
+                console.log('🔄 Enabling fullscreen for mobile device...');
+
+                if (isMobile) {
+                    await enableMobileFullscreen();
+                } else {
+                    await enableDesktopFullscreen();
+                }
+
+                console.log('✅ Fullscreen enabled');
+                setTimeout(() => {
+                    setupVideo();
+                    startRecordingDetection();
+                }, 500);
+
+            } catch (error) {
+                console.error('❌ Fullscreen failed:', error);
+                console.log('🔄 Using fallback fullscreen...');
+                
+                // Use fallback for mobile
+                enableFallbackFullscreen();
+                setTimeout(() => {
+                    setupVideo();
+                    startRecordingDetection();
+                }, 500);
+            }
+        }
+
+        async function enableMobileFullscreen() {
+            console.log('📱 Enabling mobile fullscreen...');
+            
+            const element = document.documentElement;
+            
+            if (isiOS) {
+                // iOS fullscreen attempts
+                if (element.webkitRequestFullscreen) {
+                    await element.webkitRequestFullscreen();
+                } else if (element.webkitRequestFullScreen) {
+                    await element.webkitRequestFullScreen();
+                } else {
+                    throw new Error('iOS fullscreen not available');
+                }
+            } else if (isAndroid) {
+                // Android fullscreen attempts
+                if (element.requestFullscreen) {
+                    await element.requestFullscreen();
+                } else if (element.webkitRequestFullscreen) {
+                    await element.webkitRequestFullscreen();
+                } else if (element.mozRequestFullScreen) {
+                    await element.mozRequestFullScreen();
+                } else {
+                    throw new Error('Android fullscreen not available');
+                }
+            }
+        }
+
+        async function enableDesktopFullscreen() {
+            const element = document.documentElement;
+            
+            if (element.requestFullscreen) {
+                await element.requestFullscreen();
+            } else if (element.webkitRequestFullscreen) {
+                await element.webkitRequestFullscreen();
+            } else if (element.mozRequestFullScreen) {
+                await element.mozRequestFullScreen();
+            } else if (element.msRequestFullscreen) {
+                await element.msRequestFullscreen();
+            } else {
+                throw new Error('Fullscreen not supported');
+            }
+        }
+
+        function enableFallbackFullscreen() {
+            console.log('📱 Enabling fallback mobile fullscreen...');
+            
+            // Mobile-specific fullscreen simulation
+            if (isMobile) {
+                // Hide mobile browser UI
+                window.scrollTo(0, 1);
+                
+                // Apply mobile fullscreen styles
+                document.body.style.position = 'fixed';
+                document.body.style.top = '0';
+                document.body.style.left = '0';
+                document.body.style.width = '100vw';
+                document.body.style.height = '100vh';
+                document.body.style.height = '-webkit-fill-available';
+                document.body.style.overflow = 'hidden';
+                document.body.style.zIndex = '999999';
+
+                // Update viewport for mobile
+                const viewport = document.querySelector('meta[name="viewport"]');
+                if (viewport) {
+                    viewport.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, minimal-ui';
+                }
+            }
+            
+            updateStatus('📱 Mobile Fullscreen Active');
+            console.log('✅ Fallback fullscreen enabled');
+        }
+
+        function setupVideo() {
+            document.getElementById('fullscreenRequest').style.display = 'none';
+            document.getElementById('videoContainer').style.display = 'flex';
+            
+            videoElement = document.getElementById('secureVideo');
+            videoElement.src = currentVideoUrl;
+            
+            // Mobile-optimized video setup
+            if (isMobile) {
+                setupMobileVideo();
+            }
+            
+            // Event listeners
+            videoElement.addEventListener('play', () => {
+                updateStatus('▶️ Playing');
+                console.log('🎥 Video playing on mobile');
+            });
+            
+            videoElement.addEventListener('pause', () => {
+                updateStatus('⏸️ Paused');
+            });
+            
+            videoElement.addEventListener('error', (e) => {
+                console.error('❌ Video error:', e);
+                showError('Video Error', 'Failed to load video. Please check your connection.');
+            });
+
+            videoElement.addEventListener('loadstart', () => {
+                updateStatus('📥 Loading...');
+            });
+
+            videoElement.addEventListener('canplay', () => {
+                updateStatus('✅ Ready');
+            });
+
+            videoElement.addEventListener('waiting', () => {
+                updateStatus('⏳ Buffering...');
+            });
+
+            videoElement.addEventListener('playing', () => {
+                updateStatus('▶️ Playing');
+            });
+
+            // Mobile-specific video events
+            if (isMobile) {
+                videoElement.addEventListener('touchstart', (e) => {
+                    e.stopPropagation();
+                });
+
+                // Handle mobile picture-in-picture
+                videoElement.addEventListener('enterpictureinpicture', () => {
+                    console.log('⚠️ Picture-in-picture detected');
+                    videoElement.pause();
+                    showError('PiP Blocked', 'Picture-in-picture mode is not allowed for secure videos');
+                });
+            }
+
+            console.log('🎥 Mobile video setup complete');
+        }
+
+        function setupMobileVideo() {
+            console.log('📱 Setting up mobile-specific video features...');
+            
+            // Mobile video attributes
+            videoElement.setAttribute('playsinline', '');
+            videoElement.setAttribute('webkit-playsinline', '');
+            videoElement.setAttribute('x-webkit-airplay', 'deny');
+            videoElement.setAttribute('disablePictureInPicture', '');
+            
+            if (isAndroid) {
+                videoElement.setAttribute('controlslist', 'nodownload nofullscreen noremoteplayback');
+            }
+
+            // iOS-specific setup
+            if (isiOS) {
+                // Prevent iOS from opening video in native player
+                videoElement.addEventListener('loadedmetadata', () => {
+                    // Try video element fullscreen on iOS
+                    if (videoElement.webkitEnterFullscreen) {
+                        videoElement.addEventListener('click', () => {
+                            try {
+                                videoElement.webkitEnterFullscreen();
+                            } catch (e) {
+                                console.log('iOS video fullscreen not available');
+                            }
+                        });
+                    }
+                });
+            }
+        }
+
+        function startRecordingDetection() {
+            // Mobile-optimized detection startup
+            setTimeout(() => {
+                baselineStatusBarHeight = window.screen.height - window.screen.availHeight;
+                console.log('📏 Mobile baseline height:', baselineStatusBarHeight);
+                updateDebugInfo();
+                
+                // Start monitoring with mobile-optimized interval
+                monitoringInterval = setInterval(checkForRecording, isMobile ? 1500 : 1000);
+                console.log('🔍 Mobile recording detection started');
+                updateStatus('🔍 Monitoring');
+            }, 1000);
+        }
+
+        function checkForRecording() {
+            if (isRecordingDetected) return;
+
+            if (isiOS) {
+                checkiOSRecording();
+            } else if (isAndroid) {
+                checkAndroidRecording();
+            } else {
+                checkDesktopRecording();
+            }
+
+            updateDebugInfo();
+        }
+
+        function checkiOSRecording() {
+            const currentStatusBarHeight = window.screen.height - window.screen.availHeight;
+            const heightDifference = currentStatusBarHeight - baselineStatusBarHeight;
+            
+            // iOS recording detection with mobile-optimized thresholds
+            if (heightDifference > 30) { // Higher threshold for mobile
+                onRecordingDetected('iOS screen recording indicator detected');
+            }
+
+            // Additional iOS checks
+            if (window.innerHeight < window.screen.height * 0.7) {
+                console.log('⚠️ iOS viewport significantly reduced');
+            }
+        }
+
+        function checkAndroidRecording() {
+            const viewportHeight = window.innerHeight;
+            const screenHeight = window.screen.height;
+            const ratio = viewportHeight / screenHeight;
+            
+            // Android recording detection with mobile considerations
+            if (ratio < 0.70) { // Adjusted for mobile keyboards and UI
+                onRecordingDetected('Android recording interface detected');
+            }
+
+            // Check for Android-specific recording indicators
+            if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
+                // Monitor for display media access
+            }
+        }
+
+        function checkDesktopRecording() {
+            const windowRatio = window.innerWidth / window.innerHeight;
+            if (windowRatio < 0.3 || windowRatio > 5) {
+                onRecordingDetected('Suspicious window dimensions detected');
+            }
+        }
+
+        function onRecordingDetected(method) {
+            if (isRecordingDetected) return;
+            
+            console.log('🚨 MOBILE RECORDING DETECTED:', method);
+            isRecordingDetected = true;
+            
+            // Mobile-optimized response
+            if (navigator.vibrate) {
+                navigator.vibrate([200, 100, 200]); // Haptic feedback on mobile
+            }
+            
+            // Stop monitoring
+            if (monitoringInterval) {
+                clearInterval(monitoringInterval);
+            }
+            
+            // Pause video
+            if (videoElement && !videoElement.paused) {
+                videoElement.pause();
+            }
+            
+            // Show mobile-optimized warning
+            document.getElementById('recordingWarning').style.display = 'flex';
+            updateStatus('🔴 BLOCKED');
+            
+            // Start mobile-optimized recovery detection
+            setTimeout(() => {
+                startRecordingStopDetection();
+            }, 2000);
+        }
+
+        function startRecordingStopDetection() {
+            const stopCheckInterval = setInterval(() => {
+                if (isiOS) {
+                    const currentHeight = window.screen.height - window.screen.availHeight;
+                    const difference = currentHeight - baselineStatusBarHeight;
+                    
+                    if (difference <= 20) { // Mobile-adjusted threshold
+                        console.log('✅ Mobile recording stopped');
+                        onRecordingStopped();
+                        clearInterval(stopCheckInterval);
+                    }
+                } else if (isAndroid) {
+                    const viewportHeight = window.innerHeight;
+                    const screenHeight = window.screen.height;
+                    const ratio = viewportHeight / screenHeight;
+                    
+                    if (ratio > 0.75) { // Mobile-adjusted threshold
+                        console.log('✅ Mobile recording stopped');
+                        onRecordingStopped();
+                        clearInterval(stopCheckInterval);
+                    }
+                }
+            }, 1000);
+            
+            // Mobile-optimized timeout
+            setTimeout(() => {
+                clearInterval(stopCheckInterval);
+                if (isRecordingDetected) {
+                    showError('Session Expired', 'Video access revoked due to security violation');
+                }
+            }, 45000); // Longer timeout for mobile
+        }
+
+        function onRecordingStopped() {
+            console.log('🔄 Mobile recording stopped - resuming video');
+            
+            isRecordingDetected = false;
+            
+            // Mobile haptic feedback
+            if (navigator.vibrate) {
+                navigator.vibrate(100);
+            }
+            
+            // Hide warning
+            document.getElementById('recordingWarning').style.display = 'none';
+            updateStatus('🟢 Secure');
+            
+            // Resume video
+            if (videoElement) {
+                videoElement.play().catch(e => {
+                    console.log('Mobile auto-play prevented - user interaction required');
+                    updateStatus('▶️ Tap to Resume');
+                });
+            }
+            
+            // Restart monitoring
+            startRecordingDetection();
+        }
+
+        function updateStatus(message) {
+            document.getElementById('status').textContent = message;
+        }
+
+        function updateDebugInfo() {
+            if (!debugVisible) return;
+            
+            document.getElementById('debugDevice').textContent = 
+                isiOS ? (isTablet ? 'iPad' : 'iPhone') : 
+                isAndroid ? (isTablet ? 'Android Tablet' : 'Android Phone') : 'Desktop';
+            
+            document.getElementById('debugScreen').textContent = 
+                `${screen.width}×${screen.height} (${window.devicePixelRatio}x)`;
+            
+            document.getElementById('debugViewport').textContent = 
+                `${window.innerWidth}×${window.innerHeight}`;
+            
+            document.getElementById('debugOrientation').textContent = 
+                screen.orientation ? `${screen.orientation.angle}°` : (window.orientation || 'unknown');
+            
+            document.getElementById('debugConnection').textContent = 
+                navigator.connection ? navigator.connection.effectiveType : 'unknown';
+            
+            if (navigator.getBattery) {
+                navigator.getBattery().then(battery => {
+                    document.getElementById('debugBattery').textContent = 
+                        `${Math.round(battery.level * 100)}%`;
+                });
+            } else {
+                document.getElementById('debugBattery').textContent = 'unavailable';
+            }
+        }
+
+        function toggleDebug() {
+            debugVisible = !debugVisible;
+            const panel = document.getElementById('debugPanel');
+            panel.classList.toggle('show', debugVisible);
+            if (debugVisible) {
+                updateDebugInfo();
+            }
+        }
+
+        function showError(title, message) {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('fullscreenRequest').style.display = 'none';
+            document.getElementById('videoContainer').style.display = 'none';
+            
+            const warning = document.getElementById('recordingWarning');
+            warning.innerHTML = `
+                <div class="warning-content">
+                    <div style="font-size: 50px; margin-bottom: 15px;">🚫</div>
+                    <h3>${title}</h3>
+                    <p style="margin: 15px 0; line-height: 1.6;">${message}</p>
+                    <button class="enable-btn" onclick="window.location.reload()" style="margin-top: 20px;">
+                        🔄 Reload App
+                    </button>
+                </div>
+            `;
+            warning.style.display = 'flex';
+            warning.style.background = 'rgba(0, 0, 0, 0.95)';
+            
+            updateStatus('❌ Error');
+        }
+
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+
+        // Mobile-specific event listeners
+        if (isMobile) {
+            // Prevent zoom gestures
+            document.addEventListener('gesturestart', e => e.preventDefault());
+            document.addEventListener('gesturechange', e => e.preventDefault());
+            document.addEventListener('gestureend', e => e.preventDefault());
+            
+            // Handle touch events
+            document.addEventListener('touchstart', function(e) {
+                if (e.touches.length > 1) {
+                    e.preventDefault(); // Prevent multi-touch zoom
+                }
+            }, { passive: false });
+            
+            // Handle device motion (for advanced security)
+            if ('DeviceMotionEvent' in window) {
+                window.addEventListener('devicemotion', function(e) {
+                    // Could be used for detecting device movement patterns
+                    // that might indicate recording setup
+                });
+            }
+        }
+
+        // Enhanced fullscreen monitoring for mobile
+        ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange'].forEach(event => {
+            document.addEventListener(event, function() {
+                const isFullscreen = !!(document.fullscreenElement || 
+                                        document.webkitFullscreenElement || 
+                                        document.mozFullScreenElement);
+                
+                console.log('📱 Mobile fullscreen:', isFullscreen ? 'ACTIVE' : 'LOST');
+                
+                if (!isFullscreen && videoElement && !videoElement.paused) {
+                    console.log('⚠️ Mobile fullscreen lost during playback');
+                    updateStatus('⚠️ Fullscreen Lost');
+                    
+                    // Try to restore fullscreen on mobile
+                    if (isMobile) {
+                        setTimeout(() => {
+                            enableFallbackFullscreen();
+                        }, 1000);
+                    }
+                }
+            });
+        });
+
+        // Prevent context menu and dev tools
+        document.addEventListener('contextmenu', e => e.preventDefault());
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'F12' || 
+                (e.ctrlKey && e.shiftKey && e.key === 'I') ||
+                (e.ctrlKey && e.shiftKey && e.key === 'J') ||
+                (e.ctrlKey && e.key === 'u')) {
+                e.preventDefault();
+            }
+        });
+
+        console.log('🔒 Mobile-Optimized Secure Video Player Loaded');
+        console.log('📱 Device Type:', isiOS ? (isTablet ? 'iPad' : 'iPhone') : 
+                                      isAndroid ? (isTablet ? 'Android Tablet' : 'Android Phone') : 'Desktop');
+        console.log('📊 Device Info:', deviceInfo);
+    </script>
+</body>
+</html>

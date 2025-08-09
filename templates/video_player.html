@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Essential Open Graph meta tags for WhatsApp -->
+    <meta property="og:title" content="{{ course_name|default:'Video Training' }}" />
+    <meta property="og:description" content="Secure video content - {{ user_name|default:'Student' }}" />
+    <meta property="og:type" content="video.other" />
+    <meta property="og:url" content="{{ request.build_absolute_uri }}" />
+    <meta property="og:video" content="{{ video_url }}" />
+    <meta property="og:video:secure_url" content="{{ video_url }}" />
+    <meta property="og:video:type" content="video/mp4" />
+    <meta property="og:video:width" content="1280" />
+    <meta property="og:video:height" content="720" />
+    <meta property="og:image" content="{{ video_thumbnail|default:'https://via.placeholder.com/1280x720/000000/FFFFFF?text=Video+Player' }}" />
+    <meta property="og:image:width" content="1280" />
+    <meta property="og:image:height" content="720" />
+    <meta property="og:site_name" content="Learning Management System" />
+
+    <!-- Twitter Card meta tags -->
+    <meta name="twitter:card" content="player" />
+    <meta name="twitter:title" content="{{ course_name|default:'Video Training' }}" />
+    <meta name="twitter:description" content="Secure video content" />
+    <meta name="twitter:player" content="{{ request.build_absolute_uri }}" />
+    <meta name="twitter:player:width" content="1280" />
+    <meta name="twitter:player:height" content="720" />
+    <meta name="twitter:image" content="{{ video_thumbnail|default:'https://via.placeholder.com/1280x720/000000/FFFFFF?text=Video+Player' }}" />
+
+    <!-- WhatsApp specific meta tags -->
+    <meta property="og:locale" content="en_US" />
+    <meta property="article:author" content="LMS Admin" />
+
+    <title>{{ course_name|default:'Video Player' }}</title>
+    
+
+  </head>
+  <body>
+    <video controls width="100%" height="auto" autoplay>
+      <source src="{{ video_url }}" type="video/mp4" />
+      Your browser does not support the video tag.
+    </video>
+  </body>
+</html>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: #000;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .video-container {
+            position: relative;
+            width: 100%;
+            height: 100vh;
+            background: #000;
+        }
+        
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            background: #000;
+            outline: none;
+        }
+        
+        /* Remove download button and other controls */
+        video::-webkit-media-controls-download-button {
+            display: none !important;
+        }
+        
+        video::-webkit-media-controls-fullscreen-button {
+            display: none !important;
+        }
+        
+        video::-webkit-media-controls-picture-in-picture-button {
+            display: none !important;
+        }
+        
+        /* Security overlay */
+        .security-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 0, 0, 0.8);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            color: white;
+            text-align: center;
+            font-size: 24px;
+        }
+        
+        .security-overlay.show {
+            display: flex;
+        }
+        
+        .watermark {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 14px;
+            z-index: 1000;
+            pointer-events: none;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 5px;
+        }
+        
+        /* Disable text selection */
+        * {
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+        
+        /* Hide scrollbars */
+        ::-webkit-scrollbar {
+            display: none;
+        }
+        
+        body {
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="video-container">
+        <div class="watermark" id="watermark">
+            🔒 Secure Content<br>
+            {{ user_name|default:'User' }}<br>
+            <span id="timestamp"></span>
+        </div>
+        
+        <video 
+            id="secureVideo" 
+            controls 
+            width="100%" 
+            height="auto" 
+            autoplay
+            controlsList="nodownload nofullscreen noremoteplaybook noplaybackrate"
+            disablePictureInPicture
+            oncontextmenu="return false;"
+            playsinline
+            webkit-playsinline
+        >
+            <source src="{{ video_url }}" type="video/mp4" />
+            Your browser does not support the video tag.
+        </video>
+        
+        <div class="security-overlay" id="securityOverlay">
+            <div>
+                ⚠️ SECURITY ALERT ⚠️<br><br>
+                Screen recording detected!<br>
+                Video has been paused for security.<br><br>
+                Please close all recording applications<br>
+                and refresh the page.
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const video = document.getElementById('secureVideo');
+        const securityOverlay = document.getElementById('securityOverlay');
+        const watermark = document.getElementById('watermark');
+        let isRecordingDetected = false;
+        let screenRecordingCheckInterval;
+        
+        // Update timestamp watermark
+        function updateTimestamp() {
+            document.getElementById('timestamp').textContent = 
+                new Date().toLocaleString();
+        }
+        
+        // Start timestamp updates
+        setInterval(updateTimestamp, 1000);
+        updateTimestamp();
+        
+        // Screen recording detection methods
+        function detectScreenRecording() {
+            let suspiciousActivity = false;
+            
+            // Method 1: Check for getDisplayMedia (Screen Capture API)
+            if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
+                // Override getDisplayMedia to detect usage
+                const originalGetDisplayMedia = navigator.mediaDevices.getDisplayMedia;
+                navigator.mediaDevices.getDisplayMedia = function() {
+                    suspiciousActivity = true;
+                    handleSecurityBreach('Screen capture API detected');
+                    return originalGetDisplayMedia.apply(this, arguments);
+                };
+            }
+            
+            // Method 2: Check for common screen recording software
+            const suspiciousUserAgents = [
+                'OBS', 'Camtasia', 'Bandicam', 'Fraps', 'XSplit',
+                'ScreenFlow', 'Snagit', 'QuickTime', 'Loom'
+            ];
+            
+            const userAgent = navigator.userAgent;
+            suspiciousUserAgents.forEach(software => {
+                if (userAgent.includes(software)) {
+                    suspiciousActivity = true;
+                    handleSecurityBreach(`${software} detected in user agent`);
+                }
+            });
+            
+            // Method 3: Monitor performance for recording indicators
+            if (performance.memory) {
+                const memoryUsage = performance.memory.usedJSHeapSize;
+                const memoryLimit = performance.memory.jsHeapSizeLimit;
+                
+                if (memoryUsage > memoryLimit * 0.8) {
+                    suspiciousActivity = true;
+                    handleSecurityBreach('High memory usage detected');
+                }
+            }
+            
+            // Method 4: Check for multiple video contexts (advanced)
+            const canvases = document.querySelectorAll('canvas');
+            if (canvases.length > 2) {
+                suspiciousActivity = true;
+                handleSecurityBreach('Multiple canvas elements detected');
+            }
+            
+            return suspiciousActivity;
+        }
+        
+        // Handle security breach
+        function handleSecurityBreach(reason) {
+            console.warn('Security breach detected:', reason);
+            
+            if (!isRecordingDetected) {
+                isRecordingDetected = true;
+                
+                // Pause video
+                video.pause();
+                
+                // Show security overlay
+                securityOverlay.classList.add('show');
+                
+                // Log security event (you can send this to your server)
+                logSecurityEvent(reason);
+                
+                // Optionally redirect or close
+                setTimeout(() => {
+                    // window.location.href = '/security-violation/';
+                    alert('Security violation detected. Page will close.');
+                    window.close();
+                }, 5000);
+            }
+        }
+        
+        // Log security events
+        function logSecurityEvent(reason) {
+            const securityLog = {
+                timestamp: new Date().toISOString(),
+                reason: reason,
+                userAgent: navigator.userAgent,
+                url: window.location.href,
+                ip: 'will be logged server-side'
+            };
+            
+            // Send to server for logging
+            fetch('/api/log-security-event/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(securityLog)
+            }).catch(err => console.error('Failed to log security event:', err));
+            
+            console.error('Security Event Logged:', securityLog);
+        }
+        
+        // Disable right-click
+        document.addEventListener('contextmenu', function(e) {
+            e.preventDefault();
+            handleSecurityBreach('Right-click attempted');
+            return false;
+        });
+        
+        // Disable keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            const forbiddenKeys = [
+                'F12', 'F11', 'F5', // Developer tools, fullscreen, refresh
+                'PrintScreen', 'Insert', // Screenshot keys
+                'Meta', 'Alt' // Cmd/Win key combinations
+            ];
+            
+            const forbiddenCombinations = [
+                e.ctrlKey && e.shiftKey && e.key === 'I', // Dev tools
+                e.ctrlKey && e.shiftKey && e.key === 'C', // Dev tools
+                e.ctrlKey && e.shiftKey && e.key === 'J', // Console
+                e.ctrlKey && e.key === 'u', // View source
+                e.ctrlKey && e.key === 's', // Save
+                e.ctrlKey && e.key === 'a', // Select all
+                e.ctrlKey && e.key === 'c', // Copy
+                e.ctrlKey && e.key === 'v', // Paste
+                e.ctrlKey && e.key === 'x', // Cut
+                e.ctrlKey && e.key === 'p', // Print
+                e.metaKey && e.key === 's', // Mac save
+                e.metaKey && e.shiftKey && e.key === '3', // Mac screenshot
+                e.metaKey && e.shiftKey && e.key === '4', // Mac screenshot
+                e.metaKey && e.shiftKey && e.key === '5', // Mac screenshot
+            ];
+            
+            if (forbiddenKeys.includes(e.key) || forbiddenCombinations.some(combo => combo)) {
+                e.preventDefault();
+                handleSecurityBreach(`Forbidden key combination: ${e.key}`);
+                return false;
+            }
+        });
+        
+        // Monitor window focus/blur (might indicate screen recording)
+        let blurCount = 0;
+        window.addEventListener('blur', function() {
+            blurCount++;
+            if (blurCount > 3) { // Allow some normal blurs
+                handleSecurityBreach('Suspicious window blur pattern');
+            }
+            video.pause(); // Pause when window loses focus
+        });
+        
+        window.addEventListener('focus', function() {
+            if (!isRecordingDetected) {
+                securityOverlay.classList.remove('show');
+            }
+        });
+        
+        // Monitor for DevTools
+        let devtools = false;
+        setInterval(() => {
+            if (window.outerHeight - window.innerHeight > 200 || 
+                window.outerWidth - window.innerWidth > 200) {
+                if (!devtools) {
+                    devtools = true;
+                    handleSecurityBreach('Developer tools opened');
+                }
+            } else {
+                devtools = false;
+            }
+        }, 500);
+        
+        // Prevent drag and drop
+        document.addEventListener('dragstart', function(e) {
+            e.preventDefault();
+            handleSecurityBreach('Drag and drop attempted');
+        });
+        
+        // Prevent text selection
+        document.addEventListener('selectstart', function(e) {
+            e.preventDefault();
+        });
+        
+        // Monitor video element modifications
+        const observer = new MutationObserver(function(mutations) {
+            mutations.forEach(function(mutation) {
+                if (mutation.type === 'attributes' && 
+                    mutation.target === video && 
+                    mutation.attributeName === 'src') {
+                    handleSecurityBreach('Video source modification detected');
+                }
+            });
+        });
+        
+        observer.observe(video, {
+            attributes: true,
+            attributeFilter: ['src', 'controls', 'controlsList']
+        });
+        
+        // Start periodic security checks
+        screenRecordingCheckInterval = setInterval(detectScreenRecording, 2000);
+        
+        // Remove download attribute and disable saving
+        video.addEventListener('loadstart', function() {
+            this.removeAttribute('download');
+            this.controlsList.add('nodownload');
+        });
+        
+        // Monitor for screenshot attempts (basic)
+        document.addEventListener('keyup', function(e) {
+            if (e.key === 'PrintScreen') {
+                handleSecurityBreach('Screenshot key detected');
+            }
+        });
+        
+        // Disable print
+        window.addEventListener('beforeprint', function(e) {
+            e.preventDefault();
+            handleSecurityBreach('Print attempt detected');
+            return false;
+        });
+        
+        // Mobile specific protections
+        document.addEventListener('touchstart', function(e) {
+            if (e.touches.length > 1) {
+                e.preventDefault(); // Prevent pinch zoom
+            }
+        });
+        
+        // Prevent long press context menu on mobile
+        document.addEventListener('touchstart', function(e) {
+            if (e.target === video) {
+                setTimeout(function() {
+                    if (e.target === video) {
+                        e.preventDefault();
+                    }
+                }, 300);
+            }
+        });
+        
+        // Clean up on page unload
+        window.addEventListener('beforeunload', function() {
+            clearInterval(screenRecordingCheckInterval);
+        });
+        
+        console.log('🔒 Video security system activated');
+        
+        // Hide cursor after inactivity
+        let cursorTimeout;
+        function hideCursor() {
+            document.body.style.cursor = 'none';
+        }
+        
+        function showCursor() {
+            document.body.style.cursor = 'default';
+            clearTimeout(cursorTimeout);
+            cursorTimeout = setTimeout(hideCursor, 3000);
+        }
+        
+        document.addEventListener('mousemove', showCursor);
+        showCursor();
+    </script>
+</body>
+</html>
+
