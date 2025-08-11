@@ -892,7 +892,7 @@ class WhatsAppWebhookView(View):
 It looks like you're not registered in our system yet. 
 
  **Please visit our website to complete your registration and get access to our courses:**
-https://ilead.suryodaybank.com
+https://embyte-learn.com
 
 **Need help?** Contact our support team.
 
@@ -1176,7 +1176,7 @@ Welcome! 👋
 It looks like you're not registered in our system yet. 
 Please visit our website to complete your registration and get access to our courses.
 
-Website: https://ilead.suryodaybank.com
+Website: https://embyte-learn.com
         """
 
         result = whatsapp_service.send_message(
@@ -1247,35 +1247,7 @@ def get_user_current_state(user_id):
         return error_state
 
 
-def update_user_state(user_id, next_state):
-    """Update user's current state"""
-    try:
-        if not next_state:
-            return
 
-        # Format: course_id|message_id|step|language
-        state_value = f"{next_state.get('course_id', '')}|{next_state.get('message_id', 'm-1')}|{next_state.get('step', 'start')}|{next_state.get('language', '')}"
-
-        # Update or create user state
-        user_meta, created = WpUsermeta.objects.update_or_create(
-            user_id=user_id,
-            meta_key='whatsapp_current_state',
-            defaults={'meta_value': state_value}
-        )
-
-        logger.info(f"Updated user {user_id} state to: {state_value}")
-
-    except Exception as e:
-        logger.error(f"Error updating user state: {str(e)}")
-
-
-# ...existing code...
-
-# Find ALL instances of "def process_user_message" and replace with this single version:
-
-# ...existing code...
-
-# ...existing code...
 
 def process_user_message(user_id, user_name, from_number, message_body, current_state, message_type='text', button_payload=''):
     """Process user message based on current state with enhanced welcome handling"""
@@ -1429,18 +1401,88 @@ def process_user_message(user_id, user_name, from_number, message_body, current_
         # ORIGINAL: Handle video rewatch responses ONLY for button clicks
         if (current_message_id.startswith('m-') and 
             current_step == 'waiting_video_watched' and 
-            message_type == 'button'):  # ONLY for button responses
-            
-            logger.info(f"Handling video rewatch button response for user {user_id}")
-            # Get course data first
+            message_type == 'button'):
+
             course_id = current_state.get('course_id')
             course_data = get_course_data(course_id)
-            
-            if not course_data:
-                logger.error("Course data not available")
-                return {'success': False, 'error': 'Course content not available'}
-            
-            return handle_video_rewatch_response(from_number, user_name, button_payload, course_data, {**current_state, 'user_id': user_id})
+
+            # Handle rewatch template buttons
+            if button_payload and button_payload.lower() in ['rewatch', 'rewatch_video', 'video_rewatch', '1', 'yes']:
+                logger.info(f"Handling video rewatch button response for user {user_id}")
+                return handle_video_rewatch_response(from_number, user_name, button_payload, course_data, {**current_state, 'user_id': user_id})
+
+            # Handle "Continue" from rewatch template (advance to next lesson)
+            elif button_payload and button_payload.lower() in ['continue', '2']:
+                logger.info(f"User {user_id} clicked continue on rewatch template - advancing to next lesson")
+                # Cancel any pending reminders first
+                if course_id:
+                    try:
+                        reminder_service.cancel_pending_reminders(user_id, course_id)
+                        logger.info(f"Cancelled pending reminders for user {user_id}")
+                    except:
+                        logger.info(f"Would cancel pending reminders for user {user_id}")
+
+                # Clean up video info
+                try:
+                    WpUsermeta.objects.filter(
+                        user_id=user_id,
+                        meta_key__startswith='current_video_'
+                    ).delete()
+                    logger.info(f"Cleaned up video info for user {user_id}")
+                except Exception as e:
+                    logger.warning(f"Could not clean up video info: {e}")
+
+                # Proceed to next message
+                next_message_id = get_next_message_id(current_message_id)
+                if next_message_id:
+                    logger.info(f"Proceeding to next message: {next_message_id}")
+                    if course_data:
+                        result = send_next_message_by_id(
+                            from_number=from_number,
+                            user_name=user_name,
+                            message_id=next_message_id,
+                            course_data=course_data,
+                            current_state={**current_state, 'user_id': user_id}  # <-- Ensure user_id is present
+                        )
+                        if result.get('success') and result.get('next_state'):
+                            update_user_state(user_id, result['next_state'])
+                        return result
+                    else:
+                        return {'success': False, 'error': 'Course data not available'}
+                else:
+                    # Course completed
+                    completion_msg = "🎉 Congratulations! You have completed the course successfully!"
+                    whatsapp_service.send_message(from_number, completion_msg)
+                    completed_state = {
+                        **current_state,
+                        'step': 'completed'
+                    }
+                    return {
+                        'success': True,
+                        'message': 'Course completed',
+                        'next_state': completed_state
+                    }
+
+            # Handle "Continue Learning" from reminder (repeat current message)
+            elif button_payload and button_payload.lower() in ['continue learning', 'course_learning']:
+                logger.info(f"User {user_id} clicked continue learning from reminder - repeating current message")
+                if course_data:
+                    result = send_next_message_by_id(
+                        from_number=from_number,
+                        user_name=user_name,
+                        message_id=current_message_id,  # <-- Repeat current message
+                        course_data=course_data,
+                        current_state=current_state
+                    )
+                    if result.get('success') and result.get('next_state'):
+                        update_user_state(user_id, result['next_state'])
+                    return result
+                else:
+                    return {'success': False, 'error': 'Course data not available'}
+
+            else:
+                logger.info(f"Unknown button payload during video state: {button_payload}")
+                return {'success': False, 'error': 'Unknown button action'}
 
         # Continue with existing message processing logic...
         course_id = current_state.get('course_id')
@@ -1468,21 +1510,26 @@ def process_user_message(user_id, user_name, from_number, message_body, current_
             return handle_language_selection(from_number, user_name, message_body, course_data, current_state, button_payload)
 
         elif current_message_id.startswith('m-') and current_step == 'waiting_quiz':
+            # Intercept reminder button payloads
+            if message_type == 'button' and button_payload and button_payload.lower() in ['continue learning', 'course_learning']:
+                logger.info(f"User {user_id} clicked continue learning during quiz - repeating current quiz message")
+                # Repeat the current quiz message (do not treat as answer)
+                result = send_next_message_by_id(
+                    from_number=from_number,
+                    user_name=user_name,
+                    message_id=current_message_id,  # repeat current quiz
+                    course_data=course_data,
+                    current_state={**current_state, 'user_id': user_id}
+                )
+                if result.get('success') and result.get('next_state'):
+                    update_user_state(user_id, result['next_state'])
+                return result
+
+            # Normal quiz answer handling
             if message_type == 'button' and button_payload:
                 processed_answer = button_payload
-                
                 if str(button_payload).isdigit():
-                    message_index = int(current_message_id.replace('m-', '')) - 1
-                    message_data = course_data.get(message_index)
-
-                    if message_data and message_data.get('type') == 'quiz':
-                        quiz_data = message_data.get('quiz', {})
-                        first_quiz = quiz_data.get(0)
-                        if first_quiz and isinstance(first_quiz, dict):
-                            options = first_quiz.get('options', {})
-                            if str(button_payload) in options:
-                                processed_answer = options[str(button_payload)]
-
+                    ...
                 return handle_quiz_answer(from_number, user_name, processed_answer, course_data, {**current_state, 'user_id': user_id})
             else:
                 return handle_quiz_answer(from_number, user_name, message_body, course_data, {**current_state, 'user_id': user_id})
@@ -1528,14 +1575,14 @@ def handle_video_rewatch_response(from_number, user_name, button_payload, course
         # ENHANCED VALIDATION: Check token validity
         if not active_token:
             logger.warning(f"User {user_id} clicked rewatch button but no active token found for {current_message_id}")
-            expired_msg = "⚠️ This video rewatch option has expired or been used.\n\nYou can no longer use this rewatch template. Please continue with your course."
-            whatsapp_service.send_message(from_number, expired_msg)
+            # expired_msg = "⚠️ This video rewatch option has expired or been used.\n\nYou can no longer use this rewatch template. Please continue with your course."
+            # whatsapp_service.send_message(from_number, expired_msg)
             return {'success': True, 'message': 'No active rewatch token', 'next_state': current_state}
 
         if active_token.is_expired():
             logger.warning(f"User {user_id} clicked rewatch button but token {active_token.token} has expired")
-            expired_msg = "⚠️ This video rewatch option has expired.\n\nThe time limit for rewatching has passed. Please continue with your course."
-            whatsapp_service.send_message(from_number, expired_msg)
+            # expired_msg = "⚠️ This video rewatch option has expired.\n\nThe time limit for rewatching has passed. Please continue with your course."
+            # whatsapp_service.send_message(from_number, expired_msg)
             
             # Mark token as used since it's expired
             active_token.mark_as_used()
@@ -1662,6 +1709,7 @@ def handle_video_rewatch_response(from_number, user_name, button_payload, course
                 logger.info(f"Cleaned up ALL video info for user {user_id}")
             except Exception as e:
                 logger.warning(f"Could not clean up video info: {e}")
+
 
             # Proceed to next message
             next_message_id = get_next_message_id(current_message_id)
@@ -2080,11 +2128,6 @@ You have successfully completed the course!
 • All quizzes answered
 • Learning objectives achieved
 
-**What's Next?**
-• Your progress has been saved
-• Certificate will be issued soon
-• Look out for more courses!
-
 Thank you for learning with ILead! 
 
 ---
@@ -2126,7 +2169,7 @@ Thank you for learning with ILead!
         logger.info(f"Processing message type: {message_type}")
 
         # Send the message using appropriate method
-        if message_type in ['video', 'button', 'quiz']:
+        if message_type in ['video', 'button', 'quiz', 'text']:
             result = whatsapp_service.send_dynamic_message_with_template(
                 to_number=from_number,
                 message_data=message_data,
@@ -4601,6 +4644,7 @@ def update_user_state(user_id, next_state):
             # Only schedule reminders if not completed
             if next_state.get('step') != 'completed':
                 # Schedule 30-minute reminder
+                logger.info(f"Scheduling 30-minute reminder for user {user_id}, course {course_id}, message {current_message_id}")
                 reminder_service.schedule_30_minute_reminder(user_id, course_id, current_message_id)
                 
                 # Schedule first 6-hour reminder

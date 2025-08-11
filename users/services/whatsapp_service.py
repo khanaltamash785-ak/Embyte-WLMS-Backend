@@ -330,9 +330,9 @@ class WhatsAppService:
         #     return video_url
         
         clean_video_url = video_url
-        if 'https://ilead.suryodaybank.com/' in video_url:
+        if 'https://embyte-learn.com/' in video_url:
             # Extract everything after the domain
-            path_start = video_url.find('https://ilead.suryodaybank.com/') + len('https://ilead.suryodaybank.com/')
+            path_start = video_url.find('https://embyte-learn.com/') + len('https://embyte-learn.com/')
             clean_video_url = video_url[path_start:]
             logger.info(f"Cleaned S3 URL: {clean_video_url}")
         elif video_url.startswith('https://'):

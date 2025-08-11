@@ -263,7 +263,7 @@ class SecureVideoService:
         }, timeout=expires_in)
         cached_data = cache.get(f"drm_token_{token}")
         logger.info(f"Caching token {token}, retrieved after set: {cached_data}")
-        return f"https://ilead.suryodaybank.com/django/api/drm-video/?token={token}"
+        return f"https://embyte-learn.com/django/api/drm-video/?token={token}"
         
     def mark_video_viewed(self, token):
         """Mark video as viewed"""

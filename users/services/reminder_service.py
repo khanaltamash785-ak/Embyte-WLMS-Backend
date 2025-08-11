@@ -77,7 +77,7 @@ class CourseReminderService:
             )
 
             # Schedule the reminder using threading
-            self._schedule_reminder_execution(reminder.id, 1 * 60)  # 1 minute in seconds
+            self._schedule_reminder_execution(reminder.id, 30 * 60)  # 30 minutes in seconds
 
             logger.info(f"30-minute reminder scheduled for {scheduled_time}")
             return True
@@ -515,7 +515,7 @@ Reply **CONTINUE** to resume your course now!
 ---
 💡 *Learning Tip: Consistent progress leads to better retention!*
 
-📚 **ILead Learning Platform**"""
+📚 **Emcure Learning Platform**"""
 
             elif reminder.reminder_type == '6_hour':
                 sequence = reminder.reminder_count
@@ -537,7 +537,7 @@ Reply **CONTINUE** to get back on track!
 ---
 🌟 *Reminder #{sequence} of 3* - Stay committed to your growth!
 
-📚 **ILead Learning Platform**"""
+📚 **Emcure Learning Platform**"""
 
             elif reminder.reminder_type == 'admin':
                 message = f"""📢 **Important Course Reminder** 📢
@@ -558,7 +558,7 @@ Please complete your pending course modules at your earliest convenience.
 Reply **CONTINUE** to resume now!
 
 ---
-📚 **ILead Learning Platform**
+📚 **Emcure Learning Platform**
 *This message was sent by your course administrator*"""
 
             else:
@@ -570,7 +570,7 @@ Please continue with your course "{course_name}".
 
 Reply **CONTINUE** to resume!
 
-📚 **ILead Learning Platform**"""
+📚 **Emcure Learning Platform**"""
 
             return message
 
@@ -702,7 +702,7 @@ Reply **CONTINUE** to resume!
     ---
     💡 *Learning Tip: Consistent progress leads to better retention!*
 
-    📚 **ILead Learning Platform**"""
+    📚 **Emcure Learning Platform**"""
 
             elif reminder.reminder_type == '6_hour':
                 sequence = reminder.reminder_count
@@ -731,7 +731,7 @@ Reply **CONTINUE** to resume!
     ---
     🌟 *Reminder #{sequence} of 3* - Don't lose your momentum!
 
-    📚 **ILead Learning Platform**"""
+    📚 **Emcure Learning Platform**"""
 
             elif reminder.reminder_type == 'admin':
                 message = f"""📢 **Important Course Reminder** 📢
@@ -757,7 +757,7 @@ Reply **CONTINUE** to resume!
     Reply **CONTINUE** to resume your exact position!
 
     ---
-    📚 **ILead Learning Platform**
+    📚 **Emcure Learning Platform**
     *This message was sent by your course administrator*"""
 
             else:
@@ -772,7 +772,7 @@ Reply **CONTINUE** to resume!
 
     Reply **CONTINUE** to resume!
 
-    📚 **ILead Learning Platform**"""
+    📚 **Emcure Learning Platform**"""
 
             return message
 

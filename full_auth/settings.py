@@ -340,8 +340,8 @@ if DEVELOPMENT_MODE:
 else:
     # For production - specific origins only
     CORS_ALLOWED_ORIGINS = [
-        "https://ilead.suryodaybank.com",
-        "https://ilead.suryodaybank.com",
+        "https://embyte-learn.com",
+        "https://embyte-learn.com",
         "https://player.vdocipher.com",
     ]
     CORS_ALLOW_CREDENTIALS = True
@@ -404,8 +404,8 @@ USE_SECURE_VIDEO = getenv('USE_SECURE_VIDEO', 'False').lower() == 'true'
 
 # CSRF Settings
 CSRF_TRUSTED_ORIGINS = [
-    'https://ilead.suryodaybank.com',
-    'https://ilead.suryodaybank.com',
+    'https://embyte-learn.com',
+    'https://embyte-learn.com',
     'http://127.0.0.1:8000',
     'http://localhost:8000',
 ]
