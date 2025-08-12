@@ -69,6 +69,22 @@
     </style>
   </head>
   <body>
+    {% if error %}
+    <div id="error-box" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;">
+      <h2 style="color:#d32f2f;">Link Expired or Invalid</h2>
+      <p style="font-size:17px;color:#444;">
+        {{ error|default:"This secure video link has expired or is invalid. For your security, video links are single-use and time-limited." }}
+      </p>
+      <button id="wa-redirect-btn"
+        onclick="window.location.href='https://wa.me/918691020071'"
+        style="background:#25d366;color:#fff;border:none;border-radius:4px;padding:12px 32px;font-size:18px;cursor:pointer;margin-top:16px;">
+        Contact Support on WhatsApp
+      </button>
+      <p style="margin-top:12px;font-size:13px;color:#888;">
+        If you believe this is a mistake, please contact your course administrator.
+      </p>
+    </div>
+  {% else %}
     <div class="video-container">
       <iframe
         id="vdoIframe"
@@ -77,6 +93,7 @@
         allow="encrypted-media"
       ></iframe>
     </div>
+   
 
     <!-- Status indicator -->
     <!-- <div id="status">
@@ -146,5 +163,6 @@
 
       // (Optional) If you want immediate redirect after video end you can postMessage handle here.
     </script>
+     {% endif %}
   </body>
 </html>
